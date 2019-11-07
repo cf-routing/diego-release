@@ -439,3 +439,6 @@
 [submodule "src/code.cloudfoundry.org/ecrhelper"]
 	path = src/code.cloudfoundry.org/ecrhelper
 	url = https://github.com/cloudfoundry/ecrhelper
+[submodule "src/golang.org/x/time"]
+	path = src/golang.org/x/time
+	url = https://github.com/golang/time
