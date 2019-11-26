@@ -13,8 +13,55 @@ spec:
     version: latest
 
   indicators:
+  - name: auctioneer_failed_fetch_state_requests
+    promql: rate(AuctioneerFailedCellStateRequests{source_id="auctioneer"}[5m]) * 60
+    type: sli
+    documentation:
+      title: Auctioneer - Failed Fetch State Requests
+      description: |
+        Cumulative number of cells the auctioneer failed to query for state. Emitted during each auction.
+        The number of Long Running Process (LRP) instances that the auctioneer failed to place on Diego cells. This metric is cumulative over the lifetime of the auctioneer job.
+
+        Use: This metric indicates that Auctioneer failed to get the state from Diego cell which might be caused by cell becoming unavailable. This can cause failing LRPs and Tasks scheduling.
+
+        This metric is emitted on event.
+
+        Origin: Firehose
+        Type: Counter (Integer)
+        Frequency: During each auction
+      recommended_alert_thresholds: |
+          Yellow warning: ≥ 0.5
+          Red critical: ≥ 1
+      recommended_response: |
+        1. To best determine the root cause, examine the Auctioneer logs and Diego cell logs that is not responding.
+        2. Investigate the health of your Diego cells to determine if they are causing the problem.
+        3. Consider vertically scaling the instance group the Auctioneer is on if requests are timing out and load average is high.
+        4. Ensure the network connectivity between the Auctioneer and Diego cells is healthy.
+
+  - name: auctioneer_states_duration
+    promql: max_over_time(AuctioneerFetchStatesDuration{source_id="auctioneer"}[5m]) / 1000000000
+    type: kpi
+    documentation:
+      title: Auctioneer - Time to Fetch Cell State
+      description: |
+        Time in ns that the auctioneer took to fetch state from all the Diego cells when running its auction.
+
+        Use: Indicates how the cells themselves are performing. Alerting on this metric helps alert that app staging requests to Diego may be failing.
+
+        Origin: Firehose
+        Type: Gauge, integer in ns
+        Frequency: During event, during each auction
+      recommended_alert_thresholds: |
+          Yellow warning: ≥ 2s
+          Red critical: ≥ 5s
+      recommended_response: |
+        1. Check the health of the cells by reviewing the logs and looking for errors.
+        2. Review IaaS console metrics.
+        3. Inspect the Auctioneer logs to determine if one or more cells is taking significantly longer to fetch state than other cells. Relevant log lines will have wording like `fetched cell state`.
+
   - name: auctioneer_lrp_auctions_failed
     promql: rate(AuctioneerLRPAuctionsFailed{source_id="auctioneer"}[5m]) * 60
+    type: kpi
     documentation:
       title: Auctioneer - App Instance (AI) Placement Failures
       description: |
@@ -37,28 +84,9 @@ spec:
         2. Investigate the health of your Diego cells to determine if they are the resource type causing the problem.
         3. Consider scaling additional cells.
 
-  - name: auctioneer_states_duration
-    promql: max_over_time(AuctioneerFetchStatesDuration{source_id="auctioneer"}[5m]) / 1000000000
-    documentation:
-      title: Auctioneer - Time to Fetch Cell State
-      description: |
-        Time in ns that the auctioneer took to fetch state from all the Diego cells when running its auction.
-
-        Use: Indicates how the cells themselves are performing. Alerting on this metric helps alert that app staging requests to Diego may be failing.
-
-        Origin: Firehose
-        Type: Gauge, integer in ns
-        Frequency: During event, during each auction
-      recommended_alert_thresholds: |
-          Yellow warning: ≥ 2s
-          Red critical: ≥ 5s
-      recommended_response: |
-        1. Check the health of the cells by reviewing the logs and looking for errors.
-        2. Review IaaS console metrics.
-        3. Inspect the Auctioneer logs to determine if one or more cells is taking significantly longer to fetch state than other cells. Relevant log lines will have wording like `fetched cell state`.
-
   - name: auctioneer_lrp_auctions_started
     promql: rate(AuctioneerLRPAuctionsStarted{source_id="auctioneer"}[5m]) * 60
+    type: kpi
     documentation:
       title: Auctioneer - App Instance Starts
       description: |
@@ -82,6 +110,7 @@ spec:
 
   - name: auctioneer_task_auctions_failed
     promql: rate(AuctioneerTaskAuctionsFailed{source_id="auctioneer"}[5m]) * 60
+    type: kpi
     documentation:
       title: Auctioneer - Task Placement Failures
       description: |
@@ -105,8 +134,33 @@ spec:
         1. Investigate the health of Diego cells.
         2. Consider scaling additional cells.
 
+  - name: auctioneer_tasks_auctions_started
+    promql: rate(AuctioneerTasksAuctionsStarted{source_id="auctioneer"}[5m]) * 60
+    type: kpi
+    documentation:
+      title: Auctioneer - Task Starts
+      description: |
+        The number of Tasks that the auctioneer successfully placed on Diego cells. This metric is cumulative over the lifetime of the auctioneer job.
+
+        Use: Provides a sense of running system activity levels in your environment. Can also give you a sense of how many tasks have been started over time. The provided measurement can help indicate a significant amount of container churn. However, for capacity planning purposes, it is more helpful to observe deltas over a long time window.
+
+        This metric is emitted on event, and therefore gaps in receipt of this metric can be normal during periods of no tasks being scheduled.
+
+        Origin: Firehose
+        Type: Counter (Integer)
+        Frequency: During event, during each auction
+      recommended_alert_thresholds: Dynamic
+      recommended_response: |
+        When observing a significant amount of container churn, do the following:
+
+        1. Look to eliminate explainable causes of temporary churn, such as a deployment or increased developer activity.
+        2. If container churn appears to continue over an extended period, inspect Diego Auctioneer and BBS logs.
+
+        When observing extended periods of high or low activity trends, scale up or down CF components as needed.
+
   - name: auctioneer_lock_held
     promql: max_over_time(LockHeld{source_id="auctioneer"}[5m])
+    type: sli
     documentation:
       title: Auctioneer - Lock Held
       description: |
@@ -123,3 +177,39 @@ spec:
         1. Run monit status on the instance group that the Auctioneer job is running on to check for failing processes.
         2. If there are no failing processes, then review the logs for Auctioneer.
            - Recent logs for Auctioneer should show all but one of its instances are currently waiting on locks, and the active Auctioneer should show a record of when it last attempted to execute work. This attempt should correspond to app development activity, such as cf push.
+
+  - name: auctioneer_request_count
+    promql: rate(RequestCount{source_id="auctioneer"}[5m]) * 60
+    type: other
+    documentation:
+      title: Auctioneer - Request Count
+      description: |
+        Cumulative number of requests the auctioneer has handled through its API. Emitted periodically.
+
+        Origin: Firehose
+        Type: Counter (Integer)
+        Frequency: During event, during each request
+
+  - name: auctioneer_request_latency
+    promql: avg_over_time(RequestLatency{source_id="auctioneer"}[15m]) / 1000000000
+    type: sli
+    documentation:
+      title: Auctioneer - Time to Handle Requests
+      description: |
+        The maximum observed latency time over the past 60 seconds that the Auctioneer took to handle requests across all its API endpoints.
+
+        Diego is now aggregating this metric to emit the max value observed over 60 seconds.
+
+        Use: If this metric rises, the Auctioneer API is slowing. Response to certain operations is slow if request latency is high.
+
+        Origin: Firehose
+        Type: Gauge (Integer in ns)
+        Frequency: 60 s
+      recommended_alert_thresholds: |
+        Yellow warning: ≥ 5s
+        Red critical: ≥ 10s
+      recommended_response: |
+        1. Check CPU and memory statistics.
+        2. Check Auctioneer logs for faults and errors that can indicate issues with Auctioneer.
+        3. Try scaling the Auctioneer VM resources up. For example, add more CPUs/memory depending on its system.cpu/system.memory metrics.
+        4. Consider vertically scaling the backing database, if system.cpu and system.memory metrics for the database instances are high.
